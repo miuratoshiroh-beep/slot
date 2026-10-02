@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
-<title>罰ゲームスロット</title>
+<title>ゲームスロット</title>
 <style>
 :root{--cell:200px;--gap:16px;--mpad:20px;--rh:400px;--off:100px;--bd:6px;--bg:#0d0b1a;--gold:#ffcc33;--red:#ff3355;--panel:#1b1830;--text:#f5f3ff;--muted:#9a94c0}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -83,6 +83,18 @@ body.narrow #resPenalty{font-size:clamp(17px,4.8vw,28px);padding:.35em .6em}
 .prob{font-size:12px;color:var(--gold)}
 #history{font-size:13px;color:var(--muted);max-height:160px;overflow:auto;background:#0f0d1f;border-radius:8px;padding:8px;line-height:1.7}
 .small{font-size:12px;color:var(--muted)}
+#penGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+#penGrid textarea{height:120px}
+.penHead{font-size:13px;font-weight:700;margin-bottom:4px}
+.penHead.light{color:#8fe3a4}.penHead.mid{color:var(--gold)}.penHead.heavy{color:#ff7a90}
+@media (max-width:780px){#penGrid{grid-template-columns:1fr}}
+#winBoard{background:#0f0d1f;border-radius:8px;padding:8px}
+.wgroup{margin:2px 0 10px}.wgroup>b{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#1b1830;border:1px solid #39354d;border-radius:999px;padding:3px 11px 3px 3px;margin:3px;font-size:13px}
+.chip img{width:26px;height:26px;border-radius:50%;object-fit:cover;flex:none;background:#444}
+.chip.won{border-color:var(--gold);color:var(--gold)}
+.chip.offp{opacity:.4}
+#rankBadge{display:none;font-size:clamp(13px,2.6vw,19px);font-weight:900;letter-spacing:.12em;padding:.25em 1.1em;border-radius:999px;border:2px solid currentColor}
 </style>
 </head>
 <body>
@@ -110,6 +122,7 @@ body.narrow #resPenalty{font-size:clamp(17px,4.8vw,28px);padding:.35em .6em}
   <div id="resTitle">罰ゲーム決定!!</div>
   <img id="resImg" alt="">
   <div id="resName"></div>
+  <div id="rankBadge"></div>
   <div id="resPenalty"></div>
   <div class="small" id="resHint">クリック / スペースで閉じる</div>
 </div>
@@ -142,8 +155,35 @@ body.narrow #resPenalty{font-size:clamp(17px,4.8vw,28px);padding:.35em .6em}
     <span class="small">OFF＝クリック3回で1リールずつ手動停止</span></div>
   <div class="row"><label>次の1回を強制当たり：</label><select id="forceSel"></select><span class="small">（1回使うと自動解除・保存されません）</span></div>
 
-  <h3 id="penLabel">罰ゲーム（1行に1つ・当たり時にランダム表示）</h3>
-  <textarea id="penIn"></textarea>
+  <h3 id="penLabel">罰ゲーム</h3>
+  <div class="row"><label><input type="checkbox" id="penRankIn"> 回数が進むほど重くする</label></div>
+  <div class="row small" id="stepRow">当選
+    <input type="number" id="stepLightIn" min="1" max="99" style="width:58px">回目までは『軽い』、
+    <input type="number" id="stepMidIn" min="1" max="99" style="width:58px">回目までは『ふつう』、以降は『重い』</div>
+  <div class="row"><label>次の1回のランクを指定：</label><select id="forceRankSel">
+      <option value="">なし（自動）</option><option value="light">軽い</option><option value="mid">ふつう</option><option value="heavy">重い</option>
+    </select><span class="small">（1回使うと自動解除）</span></div>
+  <div class="small" id="nextRankMsg"></div>
+  <div id="penGrid">
+    <div><div class="penHead light">軽い <span class="small" id="cLight"></span></div><textarea id="penLight"></textarea></div>
+    <div><div class="penHead mid">ふつう <span class="small" id="cMid"></span></div><textarea id="penMid"></textarea></div>
+    <div><div class="penHead heavy">重い <span class="small" id="cHeavy"></span></div><textarea id="penHeavy"></textarea></div>
+  </div>
+  <div class="row"><button id="penReset">初期値（子ども向け）に戻す</button>
+    <span class="small">いま入力されている3つのランクを、おとな向け／子ども向けの初期値で置き換えます</span></div>
+  <div class="row"><button id="penAdult">おとな向けの例を入れる</button></div>
+  <div class="small">1行に1つ。空のランクに当たった場合は、隣のランクから自動で選びます。</div>
+
+  <h3>プリセット（イベントごとの設定一式）</h3>
+  <div class="row">
+    <select id="psSel" style="min-width:200px"></select>
+    <button id="psLoad">切り替え</button>
+    <button id="psSave">上書き保存</button>
+    <button id="psNew">新規保存</button>
+    <button id="psRen">名前変更</button>
+    <button class="danger" id="psDel">削除</button>
+  </div>
+  <div class="small" id="psMsg"></div>
 
   <h3>アプリとして使う</h3>
   <div class="row"><button id="installBtn" style="display:none">ホーム画面に追加</button><span class="small" id="installMsg"></span></div>
@@ -156,11 +196,15 @@ body.narrow #resPenalty{font-size:clamp(17px,4.8vw,28px);padding:.35em .6em}
     <button id="resetOff">対象外を全解除</button>
     <button class="danger" id="clearAll">写真を全削除</button>
   </div>
-  <div class="small">設定はこのブラウザに自動保存。別PCで使う場合は書き出したJSONを読み込み。</div>
+  <div class="small" id="storeMsg"></div>
+  <div class="small">設定は端末内に自動保存されます。機種変更や別の端末で使うときは、書き出したJSONを読み込んでください。</div>
+
+  <h3>当選状況 <span class="small" id="winSummary"></span></h3>
+  <div id="winBoard"></div>
 
   <h3>履歴</h3>
   <div id="history"></div>
-  <div class="row"><button id="clrHist">履歴クリア</button></div>
+  <div class="row"><button id="clrHist">履歴をクリア（当選状況もリセット）</button></div>
 </div></div>
 
 <script>
@@ -168,13 +212,14 @@ body.narrow #resPenalty{font-size:clamp(17px,4.8vw,28px);padding:.35em .6em}
 'use strict';
 const $ = s => document.querySelector(s);
 const LS_KEY = 'event_slot_v1';
+const PS_KEY = 'event_slot_presets_v1';   // プリセット保管庫
 const SPEED = 34;       // 回転速度（コマ/秒）
 // リーチ時の最終リール速度。人数が多くても停止まで約3.5秒を超えないよう調整する
 const slowV = () => Math.max(7, Math.min(18, 3.6 * (nLen() - 1) / 3.5));
 const PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#444"/><text x="100" y="135" font-size="120" text-anchor="middle" fill="#bbb" font-family="sans-serif">?</text></svg>');
 
 const S = {
-  title: '罰ゲームスロット',
+  title: 'ゲームスロット',
   term: '罰ゲーム',   // 「罰ゲーム」にあたる呼称
   people: [],   // {id,name,img,weight,off}
   rate: 30,
@@ -182,10 +227,23 @@ const S = {
   revRate: 50,       // 当たり時に逆転演出を出す割合(%)
   excludeHit: false,
   autoStop: false,   // false = クリック3回で手動停止
-  penalties: ['一気飲み（ソフトドリンク可）','モノマネを1つ','隣の人を30秒全力で褒める','最近の恥ずかしい話を1つ','次の乾杯の音頭','好きな人のタイプを発表'],
+  pen: {                                   // ランク別のお題（子ども向けの初期値）
+    light: ['好きな食べ物を3つ言う', '好きな色を発表する', 'となりの人とハイタッチ', '今日いちばん楽しかったことを言う', '好きな給食のメニューを言う'],
+    mid:   ['好きな動物のモノマネ', 'その場で10回ジャンプ', '大きな声で自己紹介', '好きな歌を5秒だけ歌う', '好きなキャラクターを教える'],
+    heavy: ['一発ギャグを1つ', 'へんがおで写真撮影', 'みんなの前で10秒ダンス', '上手にできるポーズを3つ', '好きなものを30秒しゃべり続ける']
+  },
+  penRankOn: true,                         // 回数が進むほど重くする
+  penStep: { light: 2, mid: 4 },           // 当選N回目までのしきい値
   history: []
 };
+// プリセット切り替え時に欠けた項目を補うための既定値
+const DEFAULT_STATE = JSON.parse(JSON.stringify(S));
+const DEFAULTS = () => JSON.parse(JSON.stringify(DEFAULT_STATE));
 let forceId = '';
+let forceRank = '';
+const RANKS = ['light', 'mid', 'heavy'];
+const RANK_JA = { light: '軽い', mid: 'ふつう', heavy: '重い' };
+const RANK_COLOR = { light: '#8fe3a4', mid: '#ffcc33', heavy: '#ff7a90' };
 let soundOn = true;
 let CELL = 200;
 let order = [[], [], []];
@@ -194,23 +252,91 @@ let flashTimer = null, pendingResult = null;   // 当選点滅中〜結果画面
 let resultAt = 0;                              // 結果画面を開いた時刻
 
 /* ---------- 保存 ---------- */
-function warn(msg) { const w = document.querySelector('#warn'); w.textContent = msg; w.style.display = 'block'; document.body.classList.add('warned'); }
-function save() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
-  catch (e) {
-    console.warn('保存失敗', e);
-    warn(e && e.name === 'QuotaExceededError'
-      ? '写真の容量が上限を超えたため保存できませんでした。枚数を減らすか、設定をJSONで書き出して使ってください。'
-      : 'この開き方では設定を保存できません（リロードで写真が消えます）。下の案内をご確認ください。');
+// v06以前の単一リストをランク別に移行する
+function migrate(d) {
+  if (d && Array.isArray(d.penalties) && !d.pen) {
+    d.pen = { light: [], mid: d.penalties.slice(), heavy: [] };
   }
+  if (d && d.pen) RANKS.forEach(k => { if (!Array.isArray(d.pen[k])) d.pen[k] = []; });
+  if (d) delete d.penalties;
+  return d;
 }
-function load() {
-  try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); }
-  catch (e) {
-    warn('この開き方では設定が保存されません。ファイルを端末に保存してブラウザで開くか、ウェブ上に置いて開いてください。');
-    return;
+function warn(msg) { const w = document.querySelector('#warn'); w.textContent = msg; w.style.display = 'block'; document.body.classList.add('warned'); }
+/* ---------- 保存（IndexedDB。localStorageより容量が大きく消えにくい） ---------- */
+const DB_NAME = 'event_slot', STORE = 'kv';
+let dbp = null, storageMode = '確認中', persisted = false;
+function db() {
+  if (dbp) return dbp;
+  dbp = new Promise((res, rej) => {
+    let r;
+    try { r = indexedDB.open(DB_NAME, 1); } catch (e) { rej(e); return; }
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains(STORE)) r.result.createObjectStore(STORE); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+    r.onblocked = () => rej(new Error('blocked'));
+  });
+  return dbp;
+}
+function idbGet(k) {
+  return db().then(d => new Promise((res, rej) => {
+    const q = d.transaction(STORE, 'readonly').objectStore(STORE).get(k);
+    q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+  }));
+}
+function idbSet(k, v) {
+  return db().then(d => new Promise((res, rej) => {
+    const tx = d.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(v, k);
+    tx.oncomplete = () => res(true); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+  }));
+}
+// 連続操作でも書き込みが詰まらないよう少しまとめて書く
+let saveTimer = null, saving = null;
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 200); }
+function flushSave() {
+  clearTimeout(saveTimer);
+  const data = JSON.parse(JSON.stringify(S));
+  saving = idbSet(LS_KEY, data)
+    .then(() => { storageMode = 'IndexedDB'; })
+    .catch(() => {                                   // IndexedDBが使えない環境はlocalStorageへ退避
+      try { localStorage.setItem(LS_KEY, JSON.stringify(data)); storageMode = 'localStorage'; }
+      catch (e) {
+        storageMode = '保存できません';
+        warn(e && e.name === 'QuotaExceededError'
+          ? '容量の上限を超えたため保存できませんでした。写真の枚数を減らすか、不要なプリセットを削除してください。'
+          : 'この開き方では設定を保存できません（リロードで写真が消えます）。');
+      }
+    })
+    .then(() => { updateStorageMsg(); });
+  return saving;
+}
+// タブを閉じる直前の取りこぼしを防ぐ
+addEventListener('pagehide', () => { if (saveTimer) flushSave(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) flushSave(); });
+
+// OSに「このデータを勝手に消さないで」と申請する
+async function askPersist() {
+  try {
+    if (navigator.storage && navigator.storage.persisted) {
+      persisted = await navigator.storage.persisted();
+      if (!persisted && navigator.storage.persist) persisted = await navigator.storage.persist();
+    }
+  } catch (e) {}
+  updateStorageMsg();
+}
+async function load() {
+  let d = null;
+  try { d = await idbGet(LS_KEY); storageMode = 'IndexedDB'; } catch (e) { d = null; }
+  if (!d) {                                          // 旧localStorageからの引き継ぎ
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) d = JSON.parse(raw); } catch (e) {}
+    if (d) { try { await idbSet(LS_KEY, d); storageMode = 'IndexedDB'; } catch (e) { storageMode = 'localStorage'; } }
   }
-  try { const d = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (d && Array.isArray(d.people)) Object.assign(S, d); } catch (e) {}
+  if (d && Array.isArray(d.people)) Object.assign(S, migrate(d));
+  try { await idbSet('__probe', Date.now()); storageMode = 'IndexedDB'; }
+  catch (e) {
+    try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); storageMode = 'localStorage'; }
+    catch (e2) { storageMode = '保存できません'; warn('この開き方では設定が保存されません。ウェブ上に置いたURLから開いてください。'); }
+  }
 }
 
 /* ---------- 汎用 ---------- */
@@ -229,7 +355,7 @@ async function keepAwake() {
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
 function ensureAC() {
-  keepAwake();
+  keepAwake(); askPersist();
   if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
   if (ac && ac.state === 'suspended') ac.resume();
 }
@@ -434,18 +560,46 @@ function startSlip() {
   r.state = 'stopping';
 }
 function onSlipEnd() { showName(2); finish(); }
+/* ---------- 罰ゲームのランク ---------- */
+const hitCount = () => S.history.filter(h => h.hit).length;
+// 当選N回目から決まる自動ランク。ランク分けOFFなら null（＝全ランクをまとめて1つのリスト扱い）
+function autoRank() {
+  if (!S.penRankOn) return null;
+  const n = hitCount() + 1;                   // 今回が通算何回目の当たりか
+  if (n <= S.penStep.light) return 'light';
+  if (n <= S.penStep.mid) return 'mid';
+  return 'heavy';
+}
+const peekRank = () => forceRank || autoRank();   // 表示用。強制指定を消費しない
+// 実際に1つ選ぶ。空のランクに当たったら隣のランクから拾う
+function pickPenalty() {
+  let rank;
+  if (forceRank) { rank = forceRank; forceRank = ''; }
+  else rank = autoRank();
+  if (rank === null) {
+    const all = RANKS.flatMap(k => (S.pen[k] || []).filter(t => t.trim()));
+    return { text: all.length ? all[rnd(all.length)] : '', rank: '' };
+  }
+  const order = { light: ['light', 'mid', 'heavy'], mid: ['mid', 'light', 'heavy'], heavy: ['heavy', 'mid', 'light'] }[rank];
+  for (const k of order) {
+    const l = (S.pen[k] || []).filter(t => t.trim());
+    if (l.length) return { text: l[rnd(l.length)], rank: k };
+  }
+  return { text: '', rank };
+}
+
 function finish() {
   clearTimeout(autoTimer); clearTimeout(slipTimer);
   spinning = false; queued = 0;
   const time = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
   if (result.hit) {
     const p = S.people[result.person];
-    const pens = S.penalties.filter(s => s.trim());
-    const pen = pens.length ? pens[rnd(pens.length)] : '';
+    const picked = pickPenalty();
+    const pen = picked.text;
     $('#machine').classList.add('flash'); sfx('hit');
-    pendingResult = { p, pen };                       // 開くまでスタートを受け付けない
+    pendingResult = { p, pen, rank: picked.rank };    // 開くまでスタートを受け付けない
     clearTimeout(flashTimer); flashTimer = setTimeout(revealResult, 1100);
-    S.history.unshift({ time, hit: true, name: p.name, penalty: pen });
+    S.history.unshift({ time, hit: true, id: p.id, name: p.name, penalty: pen, rank: picked.rank });
     if (S.excludeHit) p.off = true;
   } else {
     sfx('miss');
@@ -453,22 +607,25 @@ function finish() {
   }
   updateUI();
   S.history = S.history.slice(0, 200);
-  save(); renderHistory(); renderList();
+  save(); renderHistory(); renderList(); renderWinBoard(); updateRankUI();
 }
 function revealResult() {
   clearTimeout(flashTimer); flashTimer = null;
   if (!pendingResult) return;
-  const { p, pen } = pendingResult;
+  const { p, pen, rank } = pendingResult;
   pendingResult = null;
   $('#machine').classList.remove('flash');
   updateUI();
-  showResult(p, pen);
+  showResult(p, pen, rank);
 }
 function clearNames() { [0, 1, 2].forEach(i => $('#n' + i).textContent = ''); }
 
 /* ---------- 結果表示 ---------- */
-function showResult(p, pen) {
+function showResult(p, pen, rank) {
   $('#slip').style.display = 'none';
+  const badge = $('#rankBadge');
+  if (rank && S.penRankOn) { badge.textContent = RANK_JA[rank]; badge.style.color = RANK_COLOR[rank]; badge.style.display = 'block'; }
+  else badge.style.display = 'none';
   $('#resImg').src = p.img; $('#resName').textContent = p.name + ' さん';
   $('#resPenalty').textContent = pen; $('#resPenalty').style.display = pen ? 'block' : 'none';
   $('#result').style.display = 'flex'; resultShown = true; resultAt = Date.now(); confetti();
@@ -533,7 +690,7 @@ const term = () => (S.term || '').trim() || '罰ゲーム';
 function applyTerm() {
   const t = term();
   $('#resTitle').textContent = t + '決定!!';
-  $('#penLabel').textContent = t + '（1行に1つ・当たり時にランダム表示）';
+  $('#penLabel').textContent = t;
   $('#termPrev').textContent = t;
 }
 function applyForm() {
@@ -544,8 +701,15 @@ function applyForm() {
   $('#revIn').value = S.revRate; $('#revVal').textContent = S.revRate;
   $('#exclIn').checked = S.excludeHit;
   $('#autoIn').checked = S.autoStop;
-  $('#penIn').value = S.penalties.join('\n');
-  renderList(); renderHistory();
+  $('#penRankIn').checked = S.penRankOn;
+  $('#stepLightIn').value = S.penStep.light;
+  $('#stepMidIn').value = S.penStep.mid;
+  $('#penLight').value = (S.pen.light || []).join('\n');
+  $('#penMid').value = (S.pen.mid || []).join('\n');
+  $('#penHeavy').value = (S.pen.heavy || []).join('\n');
+  $('#forceRankSel').value = forceRank;
+  updateRankUI(); renderPresets();
+  renderList(); renderHistory(); renderWinBoard();
 }
 function totalWeight() { return S.people.reduce((a, p) => a + (p.off ? 0 : Number(p.weight) || 0), 0); }
 function updateProbs() {
@@ -578,16 +742,96 @@ function renderList() {
     });
     box.appendChild(d);
   });
-  updateProbs(); updateForceSelect();
+  updateProbs(); updateForceSelect(); renderWinBoard();
 }
 function updateForceSelect() {
   const sel = $('#forceSel');
   sel.innerHTML = '<option value="">なし（通常抽選）</option>' + S.people.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
   sel.value = forceId;
 }
+function updateRankUI() {
+  $('#forceRankSel').value = forceRank;   // 消費後の自動解除を画面に反映
+  $('#stepRow').style.opacity = S.penRankOn ? '1' : '.4';
+  $('#stepLightIn').disabled = $('#stepMidIn').disabled = !S.penRankOn;
+  RANKS.forEach(k => {
+    const n = (S.pen[k] || []).filter(t => t.trim()).length;
+    $('#c' + k[0].toUpperCase() + k.slice(1)).textContent = n + '件';
+  });
+  const r = peekRank();
+  $('#nextRankMsg').innerHTML = S.penRankOn || forceRank
+    ? `これまでの当選 <b>${hitCount()}</b> 回 → 次の当選は <b style="color:${RANK_COLOR[r] || '#fff'}">『${RANK_JA[r] || '—'}』</b> から選ばれます`
+    : `ランク分けOFF：3つのランクすべてをまとめて1つのリストとして抽選します（計 ${RANKS.reduce((a, k) => a + (S.pen[k] || []).filter(t => t.trim()).length, 0)} 件）`;
+}
+// 誰がまだ当たっていないかを一覧表示する
+function winCounts() {
+  const byId = new Map(), byName = new Map();
+  S.history.filter(h => h.hit).forEach(h => {
+    if (h.id) byId.set(h.id, (byId.get(h.id) || 0) + 1);
+    else if (h.name) byName.set(h.name, (byName.get(h.name) || 0) + 1);   // v06以前の履歴は名前で突き合わせ
+  });
+  return S.people.map(p => ({ p, n: (byId.get(p.id) || 0) + (byName.get(p.name) || 0) }));
+}
+function renderWinBoard() {
+  const list = winCounts();
+  const yet = list.filter(x => x.n === 0), won = list.filter(x => x.n > 0);
+  const chip = (x, cls) => `<span class="chip ${cls}${x.p.off ? ' offp' : ''}"><img src="${x.p.img}" alt="">${esc(x.p.name)}${x.n > 1 ? ` ×${x.n}` : ''}${x.p.off ? ' (対象外)' : ''}</span>`;
+  $('#winBoard').innerHTML = S.people.length
+    ? `<div class="wgroup"><b>まだ当たっていない ${yet.length}名</b>${yet.length ? yet.map(x => chip(x, '')).join('') : '<span class="small">全員当選済みです</span>'}</div>
+       <div class="wgroup"><b>当選済み ${won.length}名</b>${won.length ? won.map(x => chip(x, 'won')).join('') : '<span class="small">まだいません</span>'}</div>`
+    : '<span class="small">参加者が登録されていません</span>';
+  $('#winSummary').textContent = S.people.length ? `（${won.length} / ${S.people.length}名が当選済み・計${hitCount()}回）` : '';
+}
+
+/* ---------- プリセット ---------- */
+// 保存が禁止された環境（file:// のiOSなど）でも落ちないようにする
+let PS = { active: '', items: [] };          // プリセットはメモリに保持し、書き込みのみ非同期
+async function loadPresetsInit() {
+  try { const d = await idbGet(PS_KEY); if (d && Array.isArray(d.items)) { PS = d; return; } } catch (e) {}
+  try { const raw = localStorage.getItem(PS_KEY); const d = raw && JSON.parse(raw);   // 旧localStorageから引き継ぎ
+        if (d && Array.isArray(d.items)) { PS = d; await idbSet(PS_KEY, PS).catch(() => {}); } } catch (e) {}
+}
+const loadPresets = () => PS;
+async function savePresets() {
+  try { await idbSet(PS_KEY, PS); return true; }
+  catch (e) {
+    try { localStorage.setItem(PS_KEY, JSON.stringify(PS)); return true; }
+    catch (e2) { warn('プリセットを保存できませんでした（容量上限）。不要なプリセットを削除するか、写真の枚数を減らしてください。'); return false; }
+  }
+}
+// 保存先と空き容量を管理画面に表示する
+async function updateStorageMsg() {
+  let use = '';
+  try {
+    if (navigator.storage && navigator.storage.estimate) {
+      const q = await navigator.storage.estimate();
+      if (q && q.usage != null) use = `／使用量 約${(q.usage / 1048576).toFixed(1)}MB`;
+    }
+  } catch (e) {}
+  const el = $('#storeMsg'); if (!el) return;
+  el.textContent = `保存先：${storageMode}／端末での保持：${persisted ? '保護あり（消えにくい）' : '通常'}${use}`;
+  el.style.color = storageMode === '保存できません' ? '#ff7a90' : '';
+}
+function renderPresets() {
+  const ps = loadPresets(), sel = $('#psSel');
+  sel.innerHTML = ps.items.length
+    ? ps.items.map(it => `<option value="${it.id}">${esc(it.name)}</option>`).join('')
+    : '<option value="">（プリセットなし）</option>';
+  if (ps.active) sel.value = ps.active;
+  const cur = ps.items.find(it => it.id === ps.active);
+  $('#psMsg').textContent = `保存 ${ps.items.length}件` + (cur ? `／現在：『${cur.name}』` : '／現在：未保存の状態');
+  updateStorageMsg();
+}
+const snapshot = () => JSON.parse(JSON.stringify(S));
+function applyState(d) {
+  Object.keys(S).forEach(k => delete S[k]);
+  Object.assign(S, DEFAULTS(), migrate(d));
+  save(); init(); applyForm();
+}
 function renderHistory() {
   $('#history').innerHTML = S.history.length
-    ? S.history.map(h => h.hit ? `<div>${h.time} <b style="color:var(--red)">当たり</b> ${esc(h.name)} ／ ${esc(h.penalty || '')}</div>` : `<div>${h.time} はずれ</div>`).join('')
+    ? S.history.map(h => h.hit
+        ? `<div>${h.time} <b style="color:var(--red)">当たり</b> ${esc(h.name)}${h.rank ? ` <span style="color:${RANK_COLOR[h.rank]}">[${RANK_JA[h.rank]}]</span>` : ''} ／ ${esc(h.penalty || '')}</div>`
+        : `<div>${h.time} はずれ</div>`).join('')
     : '<div>まだありません</div>';
 }
 
@@ -632,7 +876,75 @@ $('#revIn').addEventListener('input', e => { S.revRate = Number(e.target.value);
 $('#exclIn').addEventListener('change', e => { S.excludeHit = e.target.checked; save(); });
 $('#autoIn').addEventListener('change', e => { S.autoStop = e.target.checked; save(); updateUI(); });
 $('#forceSel').addEventListener('change', e => { forceId = e.target.value; });
-$('#penIn').addEventListener('input', e => { S.penalties = e.target.value.split('\n'); save(); });
+$('#penRankIn').addEventListener('change', e => { S.penRankOn = e.target.checked; save(); updateRankUI(); });
+function setStep() {
+  const l = Math.max(1, Number($('#stepLightIn').value) || 1);
+  const m = Math.max(l, Number($('#stepMidIn').value) || l);   // ふつうのしきい値は軽い以上
+  S.penStep = { light: l, mid: m };
+  $('#stepLightIn').value = l; $('#stepMidIn').value = m;
+  save(); updateRankUI();
+}
+$('#stepLightIn').addEventListener('change', setStep);
+$('#stepMidIn').addEventListener('change', setStep);
+RANKS.forEach(k => $('#pen' + k[0].toUpperCase() + k.slice(1)).addEventListener('input', e => {
+  S.pen[k] = e.target.value.split('\n'); save(); updateRankUI();
+}));
+$('#forceRankSel').addEventListener('change', e => { forceRank = e.target.value; updateRankUI(); });
+const ADULT_PEN = {
+  light: ['隣の人を30秒全力で褒める', 'スマホの待ち受けを見せる', '今日の運勢を発表', '最近ハマっているものを語る'],
+  mid:   ['モノマネを1つ', '一気飲み（ソフトドリンク可）', '次の乾杯の音頭', '自分の第一印象を聞いてみる'],
+  heavy: ['最近の恥ずかしい話を1つ', '好きな人のタイプを発表', '一発ギャグを3連発', '変顔で記念撮影']
+};
+function fillPen(src) {
+  S.pen = JSON.parse(JSON.stringify(src));
+  RANKS.forEach(k => { $('#pen' + k[0].toUpperCase() + k.slice(1)).value = S.pen[k].join('\n'); });
+  save(); updateRankUI();
+}
+$('#penReset').addEventListener('click', () => { if (confirm('入力中のお題を、子ども向けの初期値で置き換えます。よろしいですか？')) fillPen(DEFAULT_STATE.pen); });
+$('#penAdult').addEventListener('click', () => { if (confirm('入力中のお題を、おとな向けの例で置き換えます。よろしいですか？')) fillPen(ADULT_PEN); });
+
+/* ---------- プリセット操作 ---------- */
+$('#psSave').addEventListener('click', async () => {
+  const cur = PS.items.find(it => it.id === PS.active);
+  if (!cur) { alert('保存先がありません。「新規保存」で名前を付けて保存してください。'); return; }
+  cur.data = snapshot(); cur.savedAt = Date.now();
+  if (await savePresets()) { renderPresets(); alert(`『${cur.name}』に上書き保存しました。`); }
+});
+$('#psNew').addEventListener('click', async () => {
+  const name = (prompt('プリセット名を入力してください', S.title || 'イベント') || '').trim();
+  if (!name) return;
+  const id = uid();
+  PS.items.push({ id, name, savedAt: Date.now(), data: snapshot() });
+  PS.active = id;
+  if (await savePresets()) { renderPresets(); alert(`『${name}』として保存しました。`); }
+});
+$('#psLoad').addEventListener('click', async () => {
+  const ps = PS, target = ps.items.find(it => it.id === $('#psSel').value);
+  if (!target) { alert('切り替え先のプリセットがありません。'); return; }
+  if (target.id === ps.active) { alert('すでにこのプリセットを使用中です。'); return; }
+  const cur = ps.items.find(it => it.id === ps.active);
+  if (cur) { cur.data = snapshot(); cur.savedAt = Date.now(); }            // 現在の内容は自動で退避
+  else if (!confirm('現在の内容はどのプリセットにも保存されていません。破棄して切り替えますか？')) return;
+  ps.active = target.id;
+  if (!await savePresets()) return;
+  applyState(JSON.parse(JSON.stringify(target.data)));
+  alert(cur ? `『${cur.name}』を保存して『${target.name}』に切り替えました。` : `『${target.name}』に切り替えました。`);
+});
+$('#psRen').addEventListener('click', async () => {
+  const it = PS.items.find(x => x.id === $('#psSel').value);
+  if (!it) return;
+  const name = (prompt('新しい名前', it.name) || '').trim();
+  if (!name) return;
+  it.name = name; if (await savePresets()) renderPresets();
+});
+$('#psDel').addEventListener('click', async () => {
+  const i = PS.items.findIndex(x => x.id === $('#psSel').value);
+  if (i < 0) return;
+  if (!confirm(`『${PS.items[i].name}』を削除しますか？（いま画面に出ている内容は消えません）`)) return;
+  if (PS.items[i].id === PS.active) PS.active = '';
+  PS.items.splice(i, 1);
+  if (await savePresets()) renderPresets();
+});
 
 $('#fileIn').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
 const drop = $('#drop');
@@ -656,14 +968,14 @@ $('#impIn').addEventListener('change', e => {
     try {
       const d = JSON.parse(fr.result);
       if (!Array.isArray(d.people)) throw new Error('format');
-      Object.assign(S, d); save(); init(); applyForm(); alert('読み込みました（' + S.people.length + '名）');
+      applyState(d); alert('読み込みました（' + S.people.length + '名）');
     } catch (err) { alert('設定ファイルの形式が正しくありません'); }
   };
   fr.readAsText(f); e.target.value = '';
 });
 $('#resetOff').addEventListener('click', () => { S.people.forEach(p => p.off = false); save(); renderList(); });
 $('#clearAll').addEventListener('click', () => { if (confirm('写真を全て削除しますか？')) { S.people = []; save(); buildStrips(); renderList(); } });
-$('#clrHist').addEventListener('click', () => { S.history = []; save(); renderHistory(); });
+$('#clrHist').addEventListener('click', () => { if (!confirm('履歴と当選状況をリセットします。よろしいですか？')) return; S.history = []; save(); renderHistory(); renderWinBoard(); updateRankUI(); });
 window.addEventListener('resize', layout);
 
 /* ---------- 起動 ---------- */
@@ -693,7 +1005,12 @@ function updateInstallMsg() {
 }
 addEventListener('DOMContentLoaded', updateInstallMsg);
 
-load(); layout(); init(); updateInstallMsg(); requestAnimationFrame(loop);
+(async () => {
+  await load();
+  await loadPresetsInit();
+  layout(); init(); updateInstallMsg(); askPersist();
+  requestAnimationFrame(loop);
+})();
 })();
 </script>
 </body>
