@@ -43,6 +43,7 @@ body.narrow #startBtn{min-width:62vw;min-height:64px}
 #corner{position:fixed;right:12px;bottom:12px;display:flex;gap:8px;opacity:.2;transition:opacity .2s;z-index:10}
 #corner:hover{opacity:1}
 body.narrow #corner{top:calc(env(safe-area-inset-top) + 8px);bottom:auto;left:calc(env(safe-area-inset-left) + 8px);right:auto}
+body.narrow.land #corner{flex-direction:column}
 #corner button{background:var(--panel);color:var(--text);border:1px solid #444;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:14px}
 /* タッチ端末はホバーが無いので常時見えるサイズ・濃さにする */
 @media (hover:none){#corner{opacity:.9}#corner button{padding:11px 15px;font-size:20px}}
@@ -405,6 +406,20 @@ function layout() {
   RH = 2;
   // 横幅から1コマの大きさを決める（3コマ＋すき間＋内余白＋枠線）
   document.body.classList.toggle('narrow', narrow);
+  // スマホでは左上のボタンがタイトル文字に重ならないようにする
+  //  縦画面：ボタンの高さ分だけタイトルを下げる（padding は contentH() の実測に含まれ、下の縮小処理で収まる）
+  //  横画面：縦に余裕が無いので、ボタンを縦並びにして左右の余白に逃がす
+  const land = narrow && vw > vh;
+  document.body.classList.toggle('land', land);
+  const ti = $('#title'); ti.style.paddingTop = ti.style.paddingLeft = ti.style.paddingRight = '';
+  if (narrow) {
+    const rg = document.createRange(); rg.selectNodeContents(ti);
+    const t = rg.getBoundingClientRect(), c = $('#corner').getBoundingClientRect();
+    if (c.right + 8 > t.left) {
+      if (land) ti.style.paddingLeft = ti.style.paddingRight = Math.ceil(c.right + 8) + 'px';
+      else ti.style.paddingTop = Math.ceil(c.height + 12) + 'px';
+    }
+  }
   setCell(Math.min((vw - gutter * 2 - bd * 2) / (3 + 0.06 * 2 + 0.08 * 2), vh * (narrow ? 0.40 : 0.26)));
   // 縦が余るスマホ縦画面では、リールの窓を広げて余白を使い切る
   if (narrow && vh > vw) {
@@ -685,7 +700,7 @@ async function addFiles(files) {
 
 /* ---------- 管理画面 ---------- */
 function openAdmin() { if (spinning || pendingResult) return; applyForm(); $('#admin').style.display = 'block'; }
-function closeAdmin() { $('#admin').style.display = 'none'; }
+function closeAdmin() { $('#admin').style.display = 'none'; layout(); }   // タイトル変更で重なり判定が変わるため
 const term = () => (S.term || '').trim() || '罰ゲーム';
 function applyTerm() {
   const t = term();
@@ -979,7 +994,7 @@ $('#clrHist').addEventListener('click', () => { if (!confirm('履歴と当選状
 window.addEventListener('resize', layout);
 
 /* ---------- 起動 ---------- */
-function init() { $('#title').textContent = S.title; document.title = S.title; applyTerm(); updateUI(); buildStrips(); }
+function init() { $('#title').textContent = S.title; document.title = S.title; layout(); applyTerm(); updateUI(); buildStrips(); }
 /* ---------- PWA ---------- */
 const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
 if ('serviceWorker' in navigator && secure) {

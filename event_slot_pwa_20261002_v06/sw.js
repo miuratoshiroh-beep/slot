@@ -1,6 +1,6 @@
 /* 罰ゲームスロット — オフライン用サービスワーカー
    アプリ本体を更新したら CACHE の番号を上げること（古いキャッシュが自動で消えます） */
-const CACHE = 'event-slot-v08';
+const CACHE = 'event-slot-v09';
 const ASSETS = [
   './',
   'index.html',
