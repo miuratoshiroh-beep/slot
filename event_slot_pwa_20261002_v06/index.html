@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0d0b1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="スロット">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>罰ゲームスロット</title>
+<style>
+:root{--cell:200px;--gap:16px;--mpad:20px;--rh:400px;--off:100px;--bd:6px;--bg:#0d0b1a;--gold:#ffcc33;--red:#ff3355;--panel:#1b1830;--text:#f5f3ff;--muted:#9a94c0}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+body{background:radial-gradient(ellipse at top,#2a1650 0%,var(--bg) 60%);color:var(--text);font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#stage{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+#title{font-size:clamp(28px,5vw,64px);font-weight:900;letter-spacing:.08em;color:var(--gold);text-shadow:0 0 18px rgba(255,204,51,.6),0 4px 0 #a0521d;text-align:center}
+#machine{display:flex;gap:var(--gap);padding:var(--mpad);background:linear-gradient(#3b2a6b,#1e1540);border:var(--bd) solid var(--gold);border-radius:24px;box-shadow:0 0 40px rgba(255,204,51,.35),inset 0 0 30px rgba(0,0,0,.6);position:relative}
+#machine.flash{animation:flash .15s 10 alternate}
+@keyframes flash{to{box-shadow:0 0 90px var(--red),inset 0 0 30px rgba(0,0,0,.6);border-color:var(--red)}}
+.reel-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+.reel-wrap.next .reel{box-shadow:inset 0 0 0 4px #000,0 0 0 5px var(--gold),0 0 26px var(--gold)}
+.reel{width:var(--cell);height:var(--rh);overflow:hidden;background:#fff;border-radius:12px;position:relative;box-shadow:inset 0 0 0 4px #000}
+.reel::before,.reel::after{content:"";position:absolute;left:0;right:0;height:var(--off);z-index:2;pointer-events:none}
+.reel::before{top:0;background:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,0))}
+.reel::after{bottom:0;background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.8))}
+.strip{position:absolute;left:0;top:0;width:100%;will-change:transform}
+.cell{width:var(--cell);height:var(--cell);display:block;object-fit:cover;border-bottom:3px solid #222;background:#ddd}
+.line{position:absolute;left:0;right:0;top:var(--off);height:var(--cell);border:4px solid var(--red);border-radius:6px;z-index:3;pointer-events:none;box-shadow:0 0 12px var(--red)}
+.name{min-height:1.4em;font-size:clamp(14px,2vw,26px);font-weight:700;max-width:var(--cell);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#reach{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:calc(var(--cell)*.45);font-weight:900;color:var(--red);text-shadow:0 0 20px #fff,0 0 40px #fff;z-index:5;pointer-events:none;animation:pulse .35s infinite alternate}
+@keyframes pulse{to{transform:scale(1.12)}}
+#slip{position:absolute;left:0;right:0;top:calc(var(--off)*.18);display:none;align-items:center;justify-content:center;font-size:calc(var(--cell)*.34);font-weight:900;color:var(--gold);text-shadow:0 0 14px #000,0 0 30px var(--gold),0 4px 0 #a0521d;z-index:6;pointer-events:none;animation:slipIn .5s cubic-bezier(.2,1.8,.4,1)}
+@keyframes slipIn{from{transform:scale(.2) rotate(-12deg);opacity:0}}
+#startBtn{font-size:clamp(22px,3.5vw,44px);font-weight:900;padding:.35em 2.4em;border:none;border-radius:999px;background:linear-gradient(#ff5570,#c0122f);color:#fff;box-shadow:0 8px 0 #7a0a1d,0 0 30px rgba(255,51,85,.5);cursor:pointer;font-family:inherit;min-height:52px;touch-action:manipulation}
+body.narrow #startBtn{min-width:62vw;min-height:64px}
+#startBtn:active{transform:translateY(6px);box-shadow:0 2px 0 #7a0a1d}
+#hint{color:var(--muted);font-size:14px;padding:0 16px;text-align:center;max-width:100%}
+#corner{position:fixed;right:12px;bottom:12px;display:flex;gap:8px;opacity:.2;transition:opacity .2s;z-index:10}
+#corner:hover{opacity:1}
+body.narrow #corner{top:calc(env(safe-area-inset-top) + 8px);bottom:auto;left:calc(env(safe-area-inset-left) + 8px);right:auto}
+#corner button{background:var(--panel);color:var(--text);border:1px solid #444;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:14px}
+/* タッチ端末はホバーが無いので常時見えるサイズ・濃さにする */
+@media (hover:none){#corner{opacity:.9}#corner button{padding:11px 15px;font-size:20px}}
+body.warned #stage{padding-top:calc(env(safe-area-inset-top) + 58px)}
+body.narrow.warned #corner{top:calc(env(safe-area-inset-top) + 62px)}
+#warn{position:fixed;left:0;right:0;top:0;display:none;background:#7a1d2b;color:#fff;font-size:13px;line-height:1.5;padding:9px 12px;text-align:center;z-index:40}
+#result{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;flex-direction:column;align-items:center;justify-content:center;gap:2vh;z-index:20;cursor:pointer;
+padding:calc(env(safe-area-inset-top) + 10px) 16px calc(env(safe-area-inset-bottom) + 10px)}
+body.narrow #resTitle{font-size:clamp(26px,7.4vw,44px)}
+body.narrow #result img{width:min(30vh,56vw);height:min(30vh,56vw);border-width:6px}
+body.narrow #resName{font-size:clamp(20px,6vw,34px)}
+body.narrow #resPenalty{font-size:clamp(17px,4.8vw,28px);padding:.35em .6em}
+#result img{width:min(38vh,55vw);height:min(38vh,55vw);object-fit:cover;border-radius:20px;border:8px solid var(--gold);animation:pop .6s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{from{transform:scale(0) rotate(-20deg)}}
+#resTitle{font-size:clamp(32px,6vw,80px);font-weight:900;color:var(--red);text-shadow:0 0 20px #fff}
+#resName{font-size:clamp(26px,4vw,56px);font-weight:900}
+#resPenalty{font-size:clamp(22px,3.4vw,48px);font-weight:900;color:var(--gold);padding:.3em .8em;border:3px dashed var(--gold);border-radius:14px;max-width:90vw;text-align:center}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:25}
+#admin{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;z-index:30;overflow:auto;user-select:text;-webkit-user-select:text}
+#adminInner{background:var(--panel);max-width:960px;margin:30px auto;padding:24px;border-radius:16px}
+#admin h3{margin:20px 0 8px;font-size:16px;color:var(--gold)}
+#admin label{font-size:14px}
+#admin input[type=text],#admin input[type=number],#admin textarea,#admin select{background:#0f0d1f;color:var(--text);border:1px solid #444;border-radius:6px;padding:6px 8px;font-size:14px;font-family:inherit}
+#admin textarea{width:100%;height:120px}
+#admin button{background:#3b2a6b;color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:14px;font-family:inherit}
+#admin button.danger{background:#7a1d2b}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}
+#drop{border:2px dashed #555;border-radius:12px;padding:18px;text-align:center;color:var(--muted)}
+#drop.over{border-color:var(--gold);color:var(--gold)}
+#plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-top:10px}
+.pcard{background:#0f0d1f;border-radius:10px;padding:8px;display:flex;gap:8px;align-items:flex-start}
+.pcard.off{opacity:.45}
+.pcard img{width:64px;height:64px;object-fit:cover;border-radius:6px;flex:none}
+.pcard .f{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+.pcard input[type=text]{width:100%}
+.pcard .w{display:flex;align-items:center;gap:6px;font-size:12px}
+.pcard input[type=range]{width:80px}
+.prob{font-size:12px;color:var(--gold)}
+#history{font-size:13px;color:var(--muted);max-height:160px;overflow:auto;background:#0f0d1f;border-radius:8px;padding:8px;line-height:1.7}
+.small{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="warn"></div>
+<div id="stage">
+  <div id="title">罰ゲームスロット</div>
+  <div id="machine">
+    <div class="reel-wrap"><div class="reel" id="r0"><div class="strip"></div><div class="line"></div></div><div class="name" id="n0"></div></div>
+    <div class="reel-wrap"><div class="reel" id="r1"><div class="strip"></div><div class="line"></div></div><div class="name" id="n1"></div></div>
+    <div class="reel-wrap"><div class="reel" id="r2"><div class="strip"></div><div class="line"></div></div><div class="name" id="n2"></div></div>
+    <div id="reach">リーチ!!</div>
+    <div id="slip">逆転!!</div>
+  </div>
+  <button id="startBtn" tabindex="-1">START</button>
+  <div id="hint">スペースキー / ボタンでスタート・ストップ</div>
+</div>
+
+<div id="corner">
+  <button id="soundBtn" title="音">🔊</button>
+  <button id="fsBtn" title="全画面 (F)">⛶</button>
+  <button id="adminBtn" title="管理 (Shift+A)">⚙</button>
+</div>
+
+<div id="result">
+  <div id="resTitle">罰ゲーム決定!!</div>
+  <img id="resImg" alt="">
+  <div id="resName"></div>
+  <div id="resPenalty"></div>
+  <div class="small" id="resHint">クリック / スペースで閉じる</div>
+</div>
+<canvas id="confetti"></canvas>
+
+<div id="admin"><div id="adminInner">
+  <div class="row" style="justify-content:space-between"><h2>管理画面</h2><button id="closeAdmin">閉じる</button></div>
+
+  <h3>タイトル</h3>
+  <input type="text" id="titleIn" style="width:100%">
+
+  <h3>呼称（「罰ゲーム」にあたる言葉）</h3>
+  <div class="row"><input type="text" id="termIn" style="width:280px"><span class="small">結果画面の見出しが「<b id="termPrev"></b>決定!!」になります</span></div>
+  <div class="row small">例：ミッション ／ チャレンジ ／ お題 ／ ごほうび</div>
+
+  <h3>参加者の写真 <span id="pcount" class="small"></span></h3>
+  <div id="drop">ここに写真をドラッグ＆ドロップ ／
+    <label style="text-decoration:underline;cursor:pointer">ファイルを選択<input type="file" id="fileIn" accept="image/*,.heic,.heif" multiple hidden></label>
+    <div class="small">名前はファイル名から自動入力（後から編集可）。重み＝当たり時に選ばれやすさ（0で絶対に当たらない）。</div>
+  </div>
+  <div id="plist"></div>
+
+  <h3>確率</h3>
+  <div class="row"><label>1回あたりの当たり確率</label><input type="range" id="rateIn" min="0" max="100" step="1"><input type="number" id="rateNum" min="0" max="100" step="1" style="width:70px">%</div>
+  <div class="row"><label>はずれ時のリーチ演出率</label><input type="range" id="reachIn" min="0" max="100" step="1"><span id="reachVal"></span>%</div>
+  <div class="row"><label>当たり時の逆転演出率</label><input type="range" id="revIn" min="0" max="100" step="1"><span id="revVal"></span>%
+    <span class="small">1コマ手前で一度止まってから、もう1コマ滑って揃う</span></div>
+  <div class="row"><label><input type="checkbox" id="exclIn"> 当たった人を自動で対象外にする（同じ人が2回当たらない）</label></div>
+  <div class="row"><label><input type="checkbox" id="autoIn"> 自動で停止する（クリックしなくても順に止まる）</label>
+    <span class="small">OFF＝クリック3回で1リールずつ手動停止</span></div>
+  <div class="row"><label>次の1回を強制当たり：</label><select id="forceSel"></select><span class="small">（1回使うと自動解除・保存されません）</span></div>
+
+  <h3 id="penLabel">罰ゲーム（1行に1つ・当たり時にランダム表示）</h3>
+  <textarea id="penIn"></textarea>
+
+  <h3>アプリとして使う</h3>
+  <div class="row"><button id="installBtn" style="display:none">ホーム画面に追加</button><span class="small" id="installMsg"></span></div>
+  <div class="row small" id="offlineMsg"></div>
+
+  <h3>データ</h3>
+  <div class="row">
+    <button id="expBtn">設定を書き出し(JSON)</button>
+    <button id="impBtn">設定を読み込み</button><input type="file" id="impIn" accept=".json,application/json" hidden>
+    <button id="resetOff">対象外を全解除</button>
+    <button class="danger" id="clearAll">写真を全削除</button>
+  </div>
+  <div class="small">設定はこのブラウザに自動保存。別PCで使う場合は書き出したJSONを読み込み。</div>
+
+  <h3>履歴</h3>
+  <div id="history"></div>
+  <div class="row"><button id="clrHist">履歴クリア</button></div>
+</div></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const LS_KEY = 'event_slot_v1';
+const SPEED = 34;       // 回転速度（コマ/秒）
+// リーチ時の最終リール速度。人数が多くても停止まで約3.5秒を超えないよう調整する
+const slowV = () => Math.max(7, Math.min(18, 3.6 * (nLen() - 1) / 3.5));
+const PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#444"/><text x="100" y="135" font-size="120" text-anchor="middle" fill="#bbb" font-family="sans-serif">?</text></svg>');
+
+const S = {
+  title: '罰ゲームスロット',
+  term: '罰ゲーム',   // 「罰ゲーム」にあたる呼称
+  people: [],   // {id,name,img,weight,off}
+  rate: 30,
+  reach: 35,
+  revRate: 50,       // 当たり時に逆転演出を出す割合(%)
+  excludeHit: false,
+  autoStop: false,   // false = クリック3回で手動停止
+  penalties: ['一気飲み（ソフトドリンク可）','モノマネを1つ','隣の人を30秒全力で褒める','最近の恥ずかしい話を1つ','次の乾杯の音頭','好きな人のタイプを発表'],
+  history: []
+};
+let forceId = '';
+let soundOn = true;
+let CELL = 200;
+let order = [[], [], []];
+let spinning = false, stopIdx = 0, queued = 0, autoTimer = null, slipTimer = null, result = null, resultShown = false;
+let flashTimer = null, pendingResult = null;   // 当選点滅中〜結果画面が開くまでの保留状態
+let resultAt = 0;                              // 結果画面を開いた時刻
+
+/* ---------- 保存 ---------- */
+function warn(msg) { const w = document.querySelector('#warn'); w.textContent = msg; w.style.display = 'block'; document.body.classList.add('warned'); }
+function save() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+  catch (e) {
+    console.warn('保存失敗', e);
+    warn(e && e.name === 'QuotaExceededError'
+      ? '写真の容量が上限を超えたため保存できませんでした。枚数を減らすか、設定をJSONで書き出して使ってください。'
+      : 'この開き方では設定を保存できません（リロードで写真が消えます）。下の案内をご確認ください。');
+  }
+}
+function load() {
+  try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); }
+  catch (e) {
+    warn('この開き方では設定が保存されません。ファイルを端末に保存してブラウザで開くか、ウェブ上に置いて開いてください。');
+    return;
+  }
+  try { const d = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (d && Array.isArray(d.people)) Object.assign(S, d); } catch (e) {}
+}
+
+/* ---------- 汎用 ---------- */
+const rnd = n => Math.floor(Math.random() * n);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function ymd() { const d = new Date(); return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); }
+const nLen = () => Math.max(S.people.length, 1);
+
+/* ---------- 音 ---------- */
+let ac = null;
+let wakeLock = null;
+async function keepAwake() {
+  try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
+function ensureAC() {
+  keepAwake();
+  if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (ac && ac.state === 'suspended') ac.resume();
+}
+function tone(freq, dur, type = 'square', vol = .15, when = 0) {
+  if (!soundOn || !ac) return;
+  const t = ac.currentTime + when, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+}
+const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
+function sfx(k) {
+  if (k === 'tick') tone(1200, .025, 'square', .04);
+  if (k === 'stop') { tone(220, .12, 'square', .2); buzz(25); }
+  if (k === 'reach') [660, 880, 660, 880, 660, 880].forEach((f, i) => tone(f, .14, 'sawtooth', .12, i * .15));
+  if (k === 'hit') buzz([60, 50, 60, 50, 180]);
+  if (k === 'hit') [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone(f, .22, 'square', .15, i * .13));
+  if (k === 'miss') { tone(150, .5, 'sawtooth', .15); tone(110, .6, 'sawtooth', .12, .18); }
+  if (k === 'near') { tone(180, .45, 'sawtooth', .16); tone(140, .55, 'sawtooth', .13, .2); }       // 1コマ手前で止まった瞬間
+  if (k === 'slip') buzz([30, 40, 130]);
+  if (k === 'slip') [392, 494, 587, 740, 880].forEach((f, i) => tone(f, .2, 'sawtooth', .16, i * .11)); // 滑り出し
+}
+
+/* ---------- リール ---------- */
+const reels = [0, 1, 2].map(i => ({ el: document.querySelector('#r' + i + ' .strip'), p: 0, v: SPEED, state: 'idle', anim: null, lastCell: 0 }));
+
+let RH = 2, OFF = 0, narrow = false;
+function setCell(c) {
+  CELL = Math.max(56, Math.floor(c));
+  OFF = Math.round((CELL * RH - CELL) / 2);
+  const st = document.documentElement.style;
+  st.setProperty('--cell', CELL + 'px');
+  st.setProperty('--gap', Math.round(CELL * 0.06) + 'px');
+  st.setProperty('--mpad', Math.round(CELL * 0.08) + 'px');
+  st.setProperty('--rh', Math.round(CELL * RH) + 'px');
+  st.setProperty('--off', OFF + 'px');
+  st.setProperty('--bd', (narrow ? 4 : 6) + 'px');
+}
+// タイトル上端〜ヒント下端の実測値。画面に収まっているかの判定に使う
+function contentH() {
+  return $('#hint').getBoundingClientRect().bottom - $('#title').getBoundingClientRect().top;
+}
+function layout() {
+  const vw = innerWidth, vh = innerHeight;
+  narrow = Math.min(vw, vh) < 560;                       // スマホ相当
+  const gutter = narrow ? 10 : 24, bd = narrow ? 4 : 6;
+  RH = 2;
+  // 横幅から1コマの大きさを決める（3コマ＋すき間＋内余白＋枠線）
+  document.body.classList.toggle('narrow', narrow);
+  setCell(Math.min((vw - gutter * 2 - bd * 2) / (3 + 0.06 * 2 + 0.08 * 2), vh * (narrow ? 0.40 : 0.26)));
+  // 縦が余るスマホ縦画面では、リールの窓を広げて余白を使い切る
+  if (narrow && vh > vw) {
+    while (RH < 3.4 && contentH() + CELL * 0.22 < vh * 0.93) { RH += 0.2; setCell(CELL); }
+  }
+  // それでもはみ出す場合は縮める
+  for (let i = 0; i < 16 && contentH() > vh * 0.97 && CELL > 56; i++) setCell(CELL * 0.94);
+  render();
+}
+function buildStrips() {
+  const N = S.people.length;
+  reels.forEach((r, i) => {
+    const idx = shuffle([...Array(N).keys()]);
+    order[i] = idx;
+    const srcs = N ? idx.map(k => S.people[k].img) : [PLACEHOLDER];
+    r.el.innerHTML = '';
+    for (let c = 0; c < 3; c++) srcs.forEach(s => {
+      const im = document.createElement('img'); im.className = 'cell'; im.src = s; im.draggable = false; im.alt = '';
+      r.el.appendChild(im);
+    });
+    r.p = rnd(nLen()); r.state = 'idle';
+  });
+  clearNames(); render();
+}
+function render() {
+  const N = nLen();
+  reels.forEach(r => {
+    const pm = N + (((r.p % N) + N) % N);
+    r.el.style.transform = `translateY(${OFF - pm * CELL}px)`;
+  });
+}
+// easeOutBack（軽いオーバーシュート）
+const C1 = 0.6, C3 = C1 + 1, EASE_D0 = 3 * C3 - 2 * C1; // t=0での傾き
+const ease = t => 1 + C3 * Math.pow(t - 1, 3) + C1 * Math.pow(t - 1, 2);
+
+let lastTs = 0;
+function loop(ts) {
+  const dt = lastTs ? Math.min((ts - lastTs) / 1000, 0.05) : 0; lastTs = ts;
+  let moving = false;
+  reels.forEach((r, i) => {
+    if (r.state === 'spin') { r.p -= r.v * dt; moving = true; }
+    else if (r.state === 'stopping') {
+      moving = true;
+      const a = r.anim, t = Math.min((ts - a.t0) / a.dur, 1);
+      r.p = a.from - a.dist * ease(t);
+      const c = Math.floor(r.p); if (c !== r.lastCell) { r.lastCell = c; sfx('tick'); }
+      if (t >= 1) { r.p = Math.round(a.from - a.dist); r.state = 'idle'; (a.then || onReelStop)(i); }
+    }
+  });
+  if (moving) render();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- 抽選 ---------- */
+function decide() {
+  const P = S.people, N = P.length;
+  let hitIdx = -1;
+  if (forceId) {
+    hitIdx = P.findIndex(p => p.id === forceId);
+    forceId = ''; updateForceSelect();
+  } else if (Math.random() * 100 < S.rate) {
+    const el = P.map((p, i) => ({ i, w: p.off ? 0 : Number(p.weight) || 0 })).filter(x => x.w > 0);
+    if (el.length) {
+      const tot = el.reduce((a, x) => a + x.w, 0); let r = Math.random() * tot;
+      for (const x of el) { if ((r -= x.w) < 0) { hitIdx = x.i; break; } }
+      if (hitIdx < 0) hitIdx = el[el.length - 1].i;
+    }
+  }
+  // 当たりのときだけ、一定割合で逆転演出（3つ目を1コマ手前で止めてから滑らせる）
+  if (hitIdx >= 0) return { hit: true, person: hitIdx, cells: [hitIdx, hitIdx, hitIdx], revenge: N >= 2 && Math.random() * 100 < S.revRate };
+  const a = rnd(N);
+  if (Math.random() * 100 < S.reach) { let c; do c = rnd(N); while (c === a); return { hit: false, cells: [a, a, c] }; }
+  let b; do b = rnd(N); while (b === a);
+  return { hit: false, cells: [a, b, rnd(N)] };
+}
+
+/* ---------- 進行 ---------- */
+const btn = $('#startBtn');
+const wraps = [...document.querySelectorAll('.reel-wrap')];
+const MARKS = '①②③';
+function updateUI() {
+  btn.textContent = pendingResult ? '⋯' : spinning ? 'STOP ' + MARKS[Math.min(stopIdx, 2)] : 'START';
+  wraps.forEach((w, i) => w.classList.toggle('next', spinning && i === stopIdx));
+  $('#resHint').textContent = narrow ? 'タップで閉じる' : 'クリック / スペースで閉じる';
+  $('#hint').textContent = narrow
+    ? (S.autoStop ? 'STARTのあとは放置でも順に停止' : 'STARTのあとタップ3回で1リールずつ停止')
+    : (S.autoStop ? 'STARTで回転 → 放置でも順に停止（クリック / スペースキーで早く止める）'
+                  : 'STARTで回転 → クリック（またはスペースキー）3回で1リールずつ停止');
+}
+const RESULT_GUARD = 600;   // 結果画面が開いた直後の連打で閉じてしまうのを防ぐ
+function startOrStop() {
+  if (resultShown) { if (Date.now() - resultAt > RESULT_GUARD) closeResult(); return; }
+  if (pendingResult) { revealResult(); return; }   // 点滅中の操作は結果表示へ早送り（新しいゲームは始めない）
+  if ($('#admin').style.display === 'block') return;
+  ensureAC();
+  if (spinning) { requestStop(); return; }
+  if (S.people.length < 2) { alert('⚙ 管理画面から写真を2枚以上登録してください'); openAdmin(); return; }
+  result = decide();
+  spinning = true; stopIdx = 0; queued = 0; clearNames();
+  clearTimeout(slipTimer); $('#slip').style.display = 'none'; $('#reach').style.display = 'none';
+  reels.forEach(r => { r.state = 'spin'; r.v = SPEED; });
+  updateUI();
+  if (S.autoStop) schedule(1500);
+}
+function schedule(ms) { clearTimeout(autoTimer); autoTimer = setTimeout(() => { queued = 1; tryStop(); }, ms); }
+// クリックは必ず受け付ける。直前のリールが停止中なら1回分だけ保持して、止まった瞬間に反映する
+function requestStop() { if (stopIdx > 2) return; queued = 1; tryStop(); }
+function tryStop() {
+  if (!spinning || !queued || stopIdx > 2) return;
+  const i = stopIdx, r = reels[i];
+  if (r.state !== 'spin') return;
+  if (i > 0 && reels[i - 1].state !== 'idle') return; // 前のリールが止まるまで待つ
+  clearTimeout(autoTimer);
+  queued = 0; stopIdx++;
+  const N = nLen();
+  let target = order[i].indexOf(result.cells[i]);
+  if (i === 2 && result.revenge) target = (target + 1) % N;  // わざと1コマ手前で止める
+  let dist = (((r.p - target) % N) + N) % N;
+  const min = r.v < SPEED ? 2 : 3;   // クリックから停止までを短く保つ
+  while (dist < min) dist += N;
+  r.anim = { from: r.p, dist, t0: performance.now(), dur: Math.max(600, 1000 * EASE_D0 * dist / r.v) };
+  r.lastCell = Math.floor(r.p);
+  r.state = 'stopping';
+  updateUI();
+}
+// 実際に中央に来ているセルの人物（表示名はここから取るので演出中もズレない）
+function centerPerson(i) {
+  const N = nLen(), pos = (((Math.round(reels[i].p) % N) + N) % N);
+  return S.people[order[i][pos]];
+}
+function showName(i) { const p = centerPerson(i); $('#n' + i).textContent = p ? p.name : ''; }
+function onReelStop(i) {
+  sfx('stop');
+  showName(i);
+  const isReach = i === 1 && result.cells[0] === result.cells[1];
+  if (isReach) { $('#reach').style.display = 'flex'; sfx('reach'); reels[2].v = slowV(); }
+  if (i === 2) {
+    $('#reach').style.display = 'none';
+    if (result.revenge) { sfx('near'); clearTimeout(slipTimer); slipTimer = setTimeout(startSlip, 1200); return; }
+    finish(); return;
+  }
+  tryStop();                                                      // 先行クリック分を消化
+  if (S.autoStop && stopIdx === i + 1) schedule(isReach ? 2300 : 450);
+  updateUI();
+}
+// 逆転演出：止まったリールがもう1コマだけ滑り込む
+function startSlip() {
+  const r = reels[2];
+  $('#slip').style.display = 'flex';
+  sfx('slip');
+  r.lastCell = Math.floor(r.p);
+  r.anim = { from: r.p, dist: 1, t0: performance.now(), dur: 750, then: onSlipEnd };
+  r.state = 'stopping';
+}
+function onSlipEnd() { showName(2); finish(); }
+function finish() {
+  clearTimeout(autoTimer); clearTimeout(slipTimer);
+  spinning = false; queued = 0;
+  const time = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  if (result.hit) {
+    const p = S.people[result.person];
+    const pens = S.penalties.filter(s => s.trim());
+    const pen = pens.length ? pens[rnd(pens.length)] : '';
+    $('#machine').classList.add('flash'); sfx('hit');
+    pendingResult = { p, pen };                       // 開くまでスタートを受け付けない
+    clearTimeout(flashTimer); flashTimer = setTimeout(revealResult, 1100);
+    S.history.unshift({ time, hit: true, name: p.name, penalty: pen });
+    if (S.excludeHit) p.off = true;
+  } else {
+    sfx('miss');
+    S.history.unshift({ time, hit: false });
+  }
+  updateUI();
+  S.history = S.history.slice(0, 200);
+  save(); renderHistory(); renderList();
+}
+function revealResult() {
+  clearTimeout(flashTimer); flashTimer = null;
+  if (!pendingResult) return;
+  const { p, pen } = pendingResult;
+  pendingResult = null;
+  $('#machine').classList.remove('flash');
+  updateUI();
+  showResult(p, pen);
+}
+function clearNames() { [0, 1, 2].forEach(i => $('#n' + i).textContent = ''); }
+
+/* ---------- 結果表示 ---------- */
+function showResult(p, pen) {
+  $('#slip').style.display = 'none';
+  $('#resImg').src = p.img; $('#resName').textContent = p.name + ' さん';
+  $('#resPenalty').textContent = pen; $('#resPenalty').style.display = pen ? 'block' : 'none';
+  $('#result').style.display = 'flex'; resultShown = true; resultAt = Date.now(); confetti();
+}
+function closeResult() {
+  if (Date.now() - resultAt <= RESULT_GUARD) return;
+  $('#result').style.display = 'none'; resultShown = false;
+}
+function confetti() {
+  const cv = $('#confetti'), ctx = cv.getContext('2d');
+  cv.width = innerWidth; cv.height = innerHeight;
+  const ps = Array.from({ length: 200 }, () => ({ x: Math.random() * cv.width, y: -20 - Math.random() * cv.height * .6, vx: (Math.random() - .5) * 4, vy: 2 + Math.random() * 4, s: 6 + Math.random() * 9, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: `hsl(${rnd(360)},90%,60%)` }));
+  const t0 = performance.now();
+  (function f(ts) {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ps.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += .05; p.r += p.vr; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore(); });
+    if (ts - t0 < 5000) requestAnimationFrame(f); else ctx.clearRect(0, 0, cv.width, cv.height);
+  })(t0);
+}
+
+/* ---------- 画像取り込み ---------- */
+function drawSquare(src, w, h, size) {
+  const s = Math.min(w, h);
+  const cv = document.createElement('canvas'); cv.width = cv.height = size;
+  const sx = (w - s) / 2, sy = Math.max(0, (h - s) * 0.3); // 縦長は顔が入りやすいよう上寄せ
+  cv.getContext('2d').drawImage(src, sx, sy, s, s, 0, 0, size, size);
+  return cv.toDataURL('image/jpeg', 0.85);
+}
+async function resizeImage(file, size) {
+  if (window.createImageBitmap) { // EXIF回転を正しく処理
+    try {
+      const bm = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const out = drawSquare(bm, bm.width, bm.height, size);
+      if (bm.close) bm.close();
+      return out;
+    } catch (e) { /* fallback */ }
+  }
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => { const out = drawSquare(im, im.naturalWidth, im.naturalHeight, size); URL.revokeObjectURL(url); res(out); };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('decode')); };
+    im.src = url;
+  });
+}
+async function addFiles(files) {
+  const ng = [];
+  for (const f of files) {
+    if (!/^image\//.test(f.type) && !/\.(heic|heif)$/i.test(f.name)) continue;
+    try {
+      const img = await resizeImage(f, 360);
+      S.people.push({ id: uid(), name: f.name.replace(/\.[^.]+$/, ''), img, weight: 1, off: false });
+    } catch (e) { ng.push(f.name); }
+  }
+  if (ng.length) alert('読み込めなかった画像:\n' + ng.join('\n') + '\n\nHEICはSafariで開くか、JPEGに変換してください。');
+  save(); buildStrips(); renderList();
+}
+
+/* ---------- 管理画面 ---------- */
+function openAdmin() { if (spinning || pendingResult) return; applyForm(); $('#admin').style.display = 'block'; }
+function closeAdmin() { $('#admin').style.display = 'none'; }
+const term = () => (S.term || '').trim() || '罰ゲーム';
+function applyTerm() {
+  const t = term();
+  $('#resTitle').textContent = t + '決定!!';
+  $('#penLabel').textContent = t + '（1行に1つ・当たり時にランダム表示）';
+  $('#termPrev').textContent = t;
+}
+function applyForm() {
+  $('#titleIn').value = S.title;
+  $('#termIn').value = S.term;
+  $('#rateIn').value = S.rate; $('#rateNum').value = S.rate;
+  $('#reachIn').value = S.reach; $('#reachVal').textContent = S.reach;
+  $('#revIn').value = S.revRate; $('#revVal').textContent = S.revRate;
+  $('#exclIn').checked = S.excludeHit;
+  $('#autoIn').checked = S.autoStop;
+  $('#penIn').value = S.penalties.join('\n');
+  renderList(); renderHistory();
+}
+function totalWeight() { return S.people.reduce((a, p) => a + (p.off ? 0 : Number(p.weight) || 0), 0); }
+function updateProbs() {
+  const tot = totalWeight();
+  S.people.forEach(p => {
+    const el = document.querySelector(`.prob[data-id="${p.id}"]`); if (!el) return;
+    const w = p.off ? 0 : Number(p.weight) || 0;
+    el.textContent = '1回で当たる確率: ' + (tot ? (S.rate * w / tot).toFixed(1) : '0.0') + '%';
+    el.closest('.pcard').classList.toggle('off', !!p.off);
+  });
+  $('#pcount').textContent = `（${S.people.length}名 / 対象 ${S.people.filter(p => !p.off && Number(p.weight) > 0).length}名）`;
+}
+function renderList() {
+  const box = $('#plist'); box.innerHTML = '';
+  S.people.forEach((p, i) => {
+    const d = document.createElement('div'); d.className = 'pcard';
+    d.innerHTML = `<img src="${p.img}" alt=""><div class="f">
+      <input type="text" value="${esc(p.name)}">
+      <div class="w">重み<input type="range" min="0" max="10" step="1" value="${p.weight}"><b>${p.weight}</b></div>
+      <div class="w"><label><input type="checkbox" ${p.off ? 'checked' : ''}> 対象外</label>
+        <button class="danger" style="padding:2px 8px;margin-left:auto">削除</button></div>
+      <div class="prob" data-id="${p.id}"></div></div>`;
+    const [nameIn, wIn, offIn] = d.querySelectorAll('input');
+    nameIn.addEventListener('input', () => { p.name = nameIn.value; save(); updateForceSelect(); });
+    wIn.addEventListener('input', () => { p.weight = Number(wIn.value); d.querySelector('b').textContent = p.weight; save(); updateProbs(); });
+    offIn.addEventListener('change', () => { p.off = offIn.checked; save(); updateProbs(); });
+    d.querySelector('button').addEventListener('click', () => {
+      if (!confirm(p.name + ' を削除しますか？')) return;
+      S.people.splice(i, 1); save(); buildStrips(); renderList();
+    });
+    box.appendChild(d);
+  });
+  updateProbs(); updateForceSelect();
+}
+function updateForceSelect() {
+  const sel = $('#forceSel');
+  sel.innerHTML = '<option value="">なし（通常抽選）</option>' + S.people.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  sel.value = forceId;
+}
+function renderHistory() {
+  $('#history').innerHTML = S.history.length
+    ? S.history.map(h => h.hit ? `<div>${h.time} <b style="color:var(--red)">当たり</b> ${esc(h.name)} ／ ${esc(h.penalty || '')}</div>` : `<div>${h.time} はずれ</div>`).join('')
+    : '<div>まだありません</div>';
+}
+
+/* ---------- イベント ---------- */
+btn.addEventListener('click', () => { startOrStop(); btn.blur(); });
+$('#result').addEventListener('click', closeResult);
+$('#adminBtn').addEventListener('click', openAdmin);
+$('#closeAdmin').addEventListener('click', closeAdmin);
+$('#soundBtn').addEventListener('click', () => { soundOn = !soundOn; $('#soundBtn').textContent = soundOn ? '🔊' : '🔇'; });
+function toggleFS() {
+  const d = document, el = d.documentElement;
+  if (!(d.fullscreenElement || d.webkitFullscreenElement)) (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
+  else (d.exitFullscreen || d.webkitExitFullscreen || (() => {})).call(d);
+}
+$('#fsBtn').addEventListener('click', toggleFS);
+// iPhoneのSafariなど全画面APIが無い環境ではボタンを隠す
+if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) $('#fsBtn').style.display = 'none';
+
+document.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toUpperCase();
+  if (e.code === 'Escape') { // 入力欄にフォーカスがあっても効くようにする
+    e.preventDefault();
+    if ($('#admin').style.display === 'block') { e.target.blur && e.target.blur(); closeAdmin(); }
+    else if (resultShown) closeResult();
+    else if (pendingResult) revealResult();
+    return;
+  }
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.shiftKey && e.code === 'KeyA') { e.preventDefault(); $('#admin').style.display === 'block' ? closeAdmin() : openAdmin(); return; }
+  if ($('#admin').style.display === 'block') return;
+  if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); if (!e.repeat) startOrStop(); }
+  if (e.code === 'KeyF') toggleFS();
+});
+
+$('#titleIn').addEventListener('input', e => { S.title = e.target.value; $('#title').textContent = S.title; document.title = S.title; save(); });
+$('#termIn').addEventListener('input', e => { S.term = e.target.value; applyTerm(); save(); });
+function setRate(v) { S.rate = Math.max(0, Math.min(100, Number(v) || 0)); $('#rateIn').value = S.rate; $('#rateNum').value = S.rate; save(); updateProbs(); }
+$('#rateIn').addEventListener('input', e => setRate(e.target.value));
+$('#rateNum').addEventListener('change', e => setRate(e.target.value));
+$('#reachIn').addEventListener('input', e => { S.reach = Number(e.target.value); $('#reachVal').textContent = S.reach; save(); });
+$('#revIn').addEventListener('input', e => { S.revRate = Number(e.target.value); $('#revVal').textContent = S.revRate; save(); });
+$('#exclIn').addEventListener('change', e => { S.excludeHit = e.target.checked; save(); });
+$('#autoIn').addEventListener('change', e => { S.autoStop = e.target.checked; save(); updateUI(); });
+$('#forceSel').addEventListener('change', e => { forceId = e.target.value; });
+$('#penIn').addEventListener('input', e => { S.penalties = e.target.value.split('\n'); save(); });
+
+$('#fileIn').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
+const drop = $('#drop');
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => addFiles([...e.dataTransfer.files]));
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => e.preventDefault());
+
+$('#expBtn').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' }));
+  a.download = `slot_settings_${ymd()}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+$('#impBtn').addEventListener('click', () => $('#impIn').click());
+$('#impIn').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const d = JSON.parse(fr.result);
+      if (!Array.isArray(d.people)) throw new Error('format');
+      Object.assign(S, d); save(); init(); applyForm(); alert('読み込みました（' + S.people.length + '名）');
+    } catch (err) { alert('設定ファイルの形式が正しくありません'); }
+  };
+  fr.readAsText(f); e.target.value = '';
+});
+$('#resetOff').addEventListener('click', () => { S.people.forEach(p => p.off = false); save(); renderList(); });
+$('#clearAll').addEventListener('click', () => { if (confirm('写真を全て削除しますか？')) { S.people = []; save(); buildStrips(); renderList(); } });
+$('#clrHist').addEventListener('click', () => { S.history = []; save(); renderHistory(); });
+window.addEventListener('resize', layout);
+
+/* ---------- 起動 ---------- */
+function init() { $('#title').textContent = S.title; document.title = S.title; applyTerm(); updateUI(); buildStrips(); }
+/* ---------- PWA ---------- */
+const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+if ('serviceWorker' in navigator && secure) {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+let installEvent = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvent = e; $('#installBtn').style.display = 'inline-block'; });
+$('#installBtn').addEventListener('click', async () => {
+  if (!installEvent) return;
+  installEvent.prompt(); await installEvent.userChoice;
+  installEvent = null; $('#installBtn').style.display = 'none'; updateInstallMsg();
+});
+function standalone() { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }
+function updateInstallMsg() {
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  $('#installMsg').textContent = standalone()
+    ? 'アプリとして起動中です。'
+    : ios ? 'Safariの共有ボタン → 「ホーム画面に追加」でアプリになります。'
+          : 'ブラウザのメニューから「アプリをインストール」「ホーム画面に追加」を選んでください。';
+  $('#offlineMsg').textContent = secure
+    ? (navigator.serviceWorker && navigator.serviceWorker.controller ? 'オフライン対応：有効（電波が無くても起動します）' : 'オフライン対応：準備中（一度リロードすると有効になります）')
+    : 'オフライン対応：無効（https:// で開くと有効になります）';
+}
+addEventListener('DOMContentLoaded', updateInstallMsg);
+
+load(); layout(); init(); updateInstallMsg(); requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
